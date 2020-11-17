@@ -11,6 +11,10 @@ apt-get update
 apt-get -y install build-essential pkg-config
 apt-get -y install autoconf automake zlib1g-dev libtool
 apt-get -y install bison byacc flex ccache
+apt-get -y install unzip
+apt -y install python3.8
+# alias python=python3
+
 # apt-get -y install libc6:i386 libncurses5:i386 libstdc++6:i386 lib32z1 libbz2-1.0:i386
 # gem install android-sdk-installer
 # easy_install pip
@@ -30,7 +34,7 @@ rm android-ndk-r15c-linux-x86_64.zip
 
 # Create MobileInsight dev folder at /home/vagrant/mi-dev
 cd ~/android-ndk-r15c
-./build/tools/make_standalone_toolchain.py \
+python3 build/tools/make_standalone_toolchain.py \
     --arch arm \
     --api 26 \
     --stl gnustl \
@@ -54,21 +58,36 @@ wget http://ftp.gnu.org/pub/gnu/gettext/gettext-0.19.8.tar.gz
 tar xf gettext-0.19.8.tar.gz
 rm gettext-0.19.8.tar.gz
 
-wget https://gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-1.27.tar.bz2
-tar xf libgpg-error-1.27.tar.bz2
-rm libgpg-error-1.27.tar.bz2
+# wget https://gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-1.27.tar.bz2
+# tar xf libgpg-error-1.27.tar.bz2
+# rm libgpg-error-1.27.tar.bz2
+
+wget https://gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-1.37.tar.gz
+tar xf libgpg-error-1.37.tar.gz
+rm libgpg-error-1.37.tar.gz
 
 wget https://gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-1.8.1.tar.bz2
 tar xf libgcrypt-1.8.1.tar.bz2
 rm libgcrypt-1.8.1.tar.bz2
 
-wget http://ftp.gnome.org/pub/gnome/sources/glib/2.54/glib-2.54.0.tar.xz
-tar xf glib-2.54.0.tar.xz
-rm glib-2.54.0.tar.xz
+wget http://ftp.gnome.org/pub/gnome/sources/glib/2.54/glib-2.54.3.tar.xz
+tar xf glib-2.54.3.tar.xz
+rm glib-2.54.3.tar.xz
+# wget https://download.gnome.org/sources/glib/2.61/glib-2.61.3.tar.xz
+# tar xf glib-2.61.3.tar.xz
+# rm glib-2.61.3.tar.xz
 
-wget https://2.na.dl.wireshark.org/src/wireshark-2.4.1.tar.xz
-tar xf wireshark-2.4.1.tar.xz
-rm wireshark-2.4.1.tar.xz
+# wget https://2.na.dl.wireshark.org/src/wireshark-2.4.1.tar.xz
+# tar xf wireshark-2.4.1.tar.xz
+# rm wireshark-2.4.1.tar.xz
+
+# sudo apt-get -y install cmake pkg-config wget libglib2.0-dev bison flex libpcap-dev libgcrypt-dev qt5-default qttools5-dev qtmultimedia5-dev libqt5svg5-dev libc-ares-dev libsdl2-mixer-2.0-0 libsdl2-image-2.0-0 libsdl2-2.0-0
+
+ws_ver=3.4.0
+wget  http://www.mobileinsight.net/wireshark-${ws_ver}-rbc-dissector.tar.xz -O wireshark-${ws_ver}.tar.xz
+# wget https://www.wireshark.org/download/src/all-versions/wireshark-${ws_ver}.tar.xz
+tar -xf wireshark-${ws_ver}.tar.xz
+rm wireshark-${ws_ver}.tar.xz
 
 SCRIPT
 
@@ -91,7 +110,7 @@ SCRIPT
 
 
 $COMPILE_LIBGPGERROR = <<SCRIPT
-cd ./libgpg-error-1.27
+cd ~/libgpg-error-1.37
 ./configure --build=${BUILD_SYS} --host=${TOOLCHAIN} --prefix=${PREFIX} --enable-static --disable-shared
 make
 make install
@@ -100,7 +119,7 @@ SCRIPT
 
 
 $COMPILE_LIBGCRYPT = <<SCRIPT
-cd ./libgcrypt
+cd ~/libgcrypt-1.8.1
 ./configure --build=${BUILD_SYS} --host=${TOOLCHAIN} --prefix=${PREFIX} --enable-static --disable-shared
 make
 make install
@@ -108,7 +127,30 @@ make install
 SCRIPT
 
 
+
 $COMPILE_GLIB = <<SCRIPT
+
+# Install libffi
+wget https://github.com/libffi/libffi/releases/download/v3.3/libffi-3.3.tar.gz
+tar -xf libffi-3.3.tar.gz
+rm libffi-3.3.tar.gz
+
+cd ~/libffi-3.3
+./configure --build=${BUILD_SYS} --host=${TOOLCHAIN} --prefix=${PREFIX} --enable-static --disable-shared
+make
+make install
+
+wget https://github.com/c-ares/c-ares/releases/download/cares-1_15_0/c-ares-1.15.0.tar.gz
+tar -xf c-ares-1.15.0.tar.gz
+rm c-ares-1.15.0.tar.gz
+
+cd c-ares-1.15.0/
+./configure --build=${BUILD_SYS} --host=${TOOLCHAIN} --prefix=${PREFIX} --enable-static --disable-shared
+make
+make install
+
+emacs android.cache
+
 cd ~/glib-2.54.0
 ./configure --build=${BUILD_SYS} --host=${TOOLCHAIN} --prefix=${PREFIX} --disable-dependency-tracking --cache-file=android.cache --enable-included-printf --enable-static --with-pcre=no --disable-libmount
 make
@@ -118,8 +160,42 @@ SCRIPT
 
 
 $COMPILE_WIRESHARK = <<SCRIPT
-cd ~/wireshark-2.4.1
-./configure \
+cd ~/wireshark-3.4.0
+# ./configure \
+#     --host=${TOOLCHAIN} \
+#     --target=${TOOLCHAIN} \
+#     --build=${BUILD_SYS} \
+#     --prefix=${PREFIX} \
+#     --with-sysroot=${SYSROOT} \
+#     --without-gnutls \
+#     --without-plugins \
+#     --without-pcap \
+#     --without-libgcrypt-prefix \
+#     --disable-wireshark \
+#     --disable-packet-editor \
+#     --disable-profile-build \
+#     --disable-tshark \
+#     --disable-editcap \
+#     --disable-capinfos \
+#     --disable-captype \
+#     --disable-mergecap \
+#     --disable-reordercap \
+#     --disable-text2pcap \
+#     --disable-dftest \
+#     --disable-randpkt \
+#     --disable-dumpcap \
+#     --disable-rawshark \
+#     --disable-sharkd \
+#     --disable-tfshark \
+#     --disable-pcap-ng-default \
+#     --disable-androiddump \
+#     --disable-sshdump \
+#     --disable-ciscodump \
+#     --disable-randpktdump \
+#     --disable-udpdump \
+#       "$@"
+
+cmake \
     --host=${TOOLCHAIN} \
     --target=${TOOLCHAIN} \
     --build=${BUILD_SYS} \
@@ -148,10 +224,9 @@ cd ~/wireshark-2.4.1
     --disable-pcap-ng-default \
     --disable-androiddump \
     --disable-sshdump \
-    --disable-ciscodump \
-    --disable-randpktdump \
-    --disable-udpdump \
+    --disable-ciscodump \ .
       "$@"
+
 make
 make install
 
@@ -175,26 +250,28 @@ cp -r ~/ws_libs /vagrant/
 SCRIPT
 
 Vagrant.configure(2) do |config|
-  config.vm.box = "bento/ubuntu-16.04"
-  config.vm.box_version = "201708.22.0"
+#   config.vm.box = "bento/ubuntu-16.04"
+#   config.vm.box_version = "201708.22.0"
+  config.vm.box = "bento/ubuntu-20.04"
+  config.vm.box_version = "202004.27.0"
 
   config.vm.provider "virtualbox" do |vb|
     # # Display the VirtualBox GUI when booting the machine
     # vb.gui = true
 
     # Customize the amount of memory and cpus on the VM:
-    vb.memory = "2048"
-    vb.cpus = 2
+    vb.memory = "8192"
+    vb.cpus = 8
   end
 
-  config.vm.provision "shell", privileged: true, inline: $INSTALL_BASE
-  config.vm.provision "shell", privileged: false, keep_color: true, inline: $CREATE_NDK_TOOLCHAIN
-  config.vm.provision "shell", privileged: false, keep_color: true, inline: $DOWNLOAD_TARBALLS
-  config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_LIBICONV
-  config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_GETTEXT
-  config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_LIBGPGERROR
-  config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_LIBGCRYPT
-  config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_GLIB
-  config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_WIRESHARK
-  config.vm.provision "shell", privileged: false, keep_color: true, inline: $COPY_LIBS
+#   config.vm.provision "shell", privileged: true, inline: $INSTALL_BASE
+#   config.vm.provision "shell", privileged: false, keep_color: true, inline: $CREATE_NDK_TOOLCHAIN
+#   config.vm.provision "shell", privileged: false, keep_color: true, inline: $DOWNLOAD_TARBALLS
+#   config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_LIBICONV
+#   config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_GETTEXT
+#   config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_LIBGPGERROR
+#   config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_LIBGCRYPT
+#   config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_GLIB
+#   config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_WIRESHARK
+#   config.vm.provision "shell", privileged: false, keep_color: true, inline: $COPY_LIBS
 end
