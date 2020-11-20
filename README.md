@@ -1,2 +1,2 @@
-Automated Cross Compilation of Wireshark and Glib for Android ARMEABI
+Cross Compilation of Wireshark and Glib for Android ARMEABI
 ==========
