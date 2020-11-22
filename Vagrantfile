@@ -2,9 +2,10 @@
 # vi: set ft=ruby :
 
 # MobileInsight Vagrant Installation Script
-# Copyright (c) 2017 MobileInsight Team
+# Copyright (c) 2020 MobileInsight Team
 # Author: Zengwen Yuan, zyuan (at) cs.ucla.edu
-# Version: 1.2
+# Update: Yunqi Guo
+# Version: 2.0
 
 $INSTALL_BASE = <<SCRIPT
 apt-get update
@@ -14,13 +15,9 @@ apt-get -y install bison byacc flex ccache
 apt-get -y install unzip
 apt -y install python3.8
 apt-get -y install libncurses5
-
 apt-get -y install cmake pkg-config wget libglib2.0-dev bison flex libpcap-dev libgcrypt-dev qt5-default qttools5-dev qtmultimedia5-dev libqt5svg5-dev libc-ares-dev libsdl2-mixer-2.0-0 libsdl2-image-2.0-0 libsdl2-2.0-0
 
-# alias python=python3
-# apt-get -y install libc6:i386 libncurses5:i386 libstdc++6:i386 lib32z1 libbz2-1.0:i386
-# gem install android-sdk-installer
-# easy_install pip
+alias python=python3
 
 SCRIPT
 
@@ -44,15 +41,11 @@ python3 build/tools/make_standalone_toolchain.py \
     --unified-headers \
     --install-dir /home/vagrant/android-ndk-toolchain
 
-cd ~
-cp /vagrant/envsetup.sh .
-chmod +x envsetup.sh
-source envsetup.sh
-
 SCRIPT
 
 
 $DOWNLOAD_TARBALLS = <<SCRIPT
+cd ~
 wget http://ftp.gnu.org/pub/gnu/libiconv/libiconv-1.15.tar.gz
 tar xf libiconv-1.15.tar.gz
 rm libiconv-1.15.tar.gz
@@ -76,14 +69,42 @@ rm libgcrypt-1.8.1.tar.bz2
 wget http://ftp.gnome.org/pub/gnome/sources/glib/2.54/glib-2.54.3.tar.xz
 tar xf glib-2.54.3.tar.xz
 rm glib-2.54.3.tar.xz
-# wget https://download.gnome.org/sources/glib/2.61/glib-2.61.3.tar.xz
-# tar xf glib-2.61.3.tar.xz
-# rm glib-2.61.3.tar.xz
+
+wget https://github.com/c-ares/c-ares/releases/download/cares-1_15_0/c-ares-1.15.0.tar.gz
+tar -xf c-ares-1.15.0.tar.gz
+rm c-ares-1.15.0.tar.gz
+
+wget https://github.com/libffi/libffi/releases/download/v3.3/libffi-3.3.tar.gz
+tar -xf libffi-3.3.tar.gz
+rm libffi-3.3.tar.gz
 
 ws_ver=3.4.0
+# wget https://www.wireshark.org/download/src/all-versions/wireshark-${ws_ver}.tar.xz
+# We use a customized wireshark version
 wget  http://www.mobileinsight.net/wireshark-${ws_ver}-rbc-dissector.tar.xz -O wireshark-${ws_ver}.tar.xz
 tar -xf wireshark-${ws_ver}.tar.xz
 rm wireshark-${ws_ver}.tar.xz
+
+wget http://www.tcpdump.org/release/libpcap-1.9.1.tar.gz
+tar -xf libpcap-1.9.1.tar.gz
+rm libpcap-1.9.1.tar.gz
+
+# Apply the patch to wireshark
+cp /vagrant/ws_android.patch ~/
+cd ~/wireshark-3.4.0
+patch -p1 < ../ws_android.patch
+
+# Compile first
+cd ~/wireshark-3.4.0/tools/lemon
+cmake .
+make
+cp lemon ~/
+
+# Import the environment settings
+cd ~
+cp /vagrant/envsetup.sh .
+chmod +x envsetup.sh
+source envsetup.sh
 
 SCRIPT
 
@@ -124,9 +145,6 @@ SCRIPT
 
 
 $COMPILE_PCAP = <<SCRIPT
-wget http://www.tcpdump.org/release/libpcap-1.9.1.tar.gz
-tar -zxvf libpcap-1.9.1.tar.gz
-rm libpcap-1.9.1.tar.gz
 cd ~/libpcap-1.9.1
 ./configure --build=${BUILD_SYS} --host=${TOOLCHAIN} --prefix=${PREFIX} --enable-static --disable-shared
 make
@@ -137,20 +155,10 @@ SCRIPT
 $COMPILE_GLIB = <<SCRIPT
 
 # Install libffi
-cd ~
-wget https://github.com/libffi/libffi/releases/download/v3.3/libffi-3.3.tar.gz
-tar -xf libffi-3.3.tar.gz
-rm libffi-3.3.tar.gz
-
 cd ~/libffi-3.3
 ./configure --build=${BUILD_SYS} --host=${TOOLCHAIN} --prefix=${PREFIX} --enable-static --disable-shared
 make
 make install
-
-cd ~
-wget https://github.com/c-ares/c-ares/releases/download/cares-1_15_0/c-ares-1.15.0.tar.gz
-tar -xf c-ares-1.15.0.tar.gz
-rm c-ares-1.15.0.tar.gz
 
 cd ~/c-ares-1.15.0/
 unset CFLAGS
@@ -159,10 +167,9 @@ make
 make install
 
 # Reset the CFLAGS
-cd ~
-source envsetup.sh
+source ~/envsetup.sh
 cd ~/glib-2.54.3
-# edit the android cache following http://zwyuan.github.io/2016/07/17/cross-compile-glib-for-android/
+cp /vagrant/android.cache .
 ./configure --build=${BUILD_SYS} --host=${TOOLCHAIN} --prefix=${PREFIX} --disable-dependency-tracking --cache-file=android.cache --enable-included-printf --enable-static --with-pcre=no --disable-libmount
 make
 make install
@@ -221,8 +228,9 @@ cmake \
     -DBUILD_randpktdump=OFF \
     -DBUILD_udpdump=OFF .
 # Replace lemon with the prebuilt one
+grep -rwl '&& lemon' * | xargs -i@ sed -i 's/\&\& lemon/\&\& ~\/lemon/g' @
 make
-make install
+sudo make install
 
 SCRIPT
 
@@ -232,17 +240,16 @@ $COPY_LIBS = <<SCRIPT
 cd ~
 mkdir ws_libs
 cd ws_libs
+cp ~/androidcc/lib/libgio-2.0.so .
 cp ~/androidcc/lib/libglib-2.0.so .
 cp ~/androidcc/lib/libgobject-2.0.so .
 cp ~/androidcc/lib/libgmodule-2.0.so .
 cp ~/androidcc/lib/libgthread-2.0.so .
-cp ~/androidcc/lib/libgcap-2.0.so .
 cp /usr/local/lib/libwireshark.so .
 cp /usr/local/lib/libwiretap.so .
 cp /usr/local/lib/libwsutil.so .
 
 cp -r ~/ws_libs /vagrant/
-
 SCRIPT
 
 Vagrant.configure(2) do |config|
@@ -261,17 +268,14 @@ Vagrant.configure(2) do |config|
   end
 
   config.vm.provision "shell", privileged: true, inline: $INSTALL_BASE
-
-# It's better to do the remaining part manually.
-
-#   config.vm.provision "shell", privileged: false, keep_color: true, inline: $CREATE_NDK_TOOLCHAIN
-#   config.vm.provision "shell", privileged: false, keep_color: true, inline: $DOWNLOAD_TARBALLS
-#   config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_LIBICONV
-#   config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_GETTEXT
-#   config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_LIBGPGERROR
-#   config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_LIBGCRYPT
-#   config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_PCAP
-#   config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_GLIB
-#   config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_WIRESHARK
-#   config.vm.provision "shell", privileged: false, keep_color: true, inline: $COPY_LIBS
+  config.vm.provision "shell", privileged: false, keep_color: true, inline: $CREATE_NDK_TOOLCHAIN
+  config.vm.provision "shell", privileged: false, keep_color: true, inline: $DOWNLOAD_TARBALLS
+  config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_LIBICONV
+  config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_GETTEXT
+  config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_LIBGPGERROR
+  config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_LIBGCRYPT
+  config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_PCAP
+  config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_GLIB
+  config.vm.provision "shell", privileged: false, keep_color: true, inline: $COMPILE_WIRESHARK
+  config.vm.provision "shell", privileged: false, keep_color: true, inline: $COPY_LIBS
 end
