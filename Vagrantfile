@@ -227,6 +227,10 @@ cmake \
     -DBUILD_ciscodump=OFF \
     -DBUILD_randpktdump=OFF \
     -DBUILD_udpdump=OFF .
+
+# To install the libwireshark at the same location as the other libs:
+# DCMAKE_INSTALL_PREFIX=${PREFIX}
+
 # Replace lemon with the prebuilt one
 grep -rwl '&& lemon' * | xargs -i@ sed -i 's/\&\& lemon/\&\& ~\/lemon/g' @
 make
